@@ -45,7 +45,7 @@ Whether you need to manage complex autopilot systems, engine mixtures, or landin
 - Add the Encoder and Keypad libraries via the Library Manager. Also add Matthew Heironimus' [ArduinoJoystickLibrary](https://github.com/mheironimus/arduinojoysticklibrary) to the sketch via _Sketch/Include Library/Add .ZIP Library_.
 - Make sure your Arduino Leonardo is connected and the COM port selected.
 - Upload the sketch to your Leonardo.
-- Be aware that Windows will not show more than 32 buttons when calibrating the device. Nonetheless they are recognized and working. Use something like [Pointy's Joystick Test](https://www.planetpointy.co.uk/joystick-test-application/) for testing.
+- Be aware that Windows will not show more than 32 buttons when calibrating the device. Nonetheless they are recognized and working. For testing I created [HID Tester - A free Joystick Testing App](https://github.com/rhunecke/HIDTester). Any other modern tools work as well.
 
 ## 📝 License
 **3D Print Files**
