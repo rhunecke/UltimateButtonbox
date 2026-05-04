@@ -47,6 +47,24 @@ Whether you need to manage complex autopilot systems, engine mixtures, or landin
 - Upload the sketch to your Leonardo.
 - Be aware that Windows will not show more than 32 buttons when calibrating the device. Nonetheless they are recognized and working. For testing I created [HID Tester - A free Joystick Testing App](https://github.com/rhunecke/HIDTester). Any other modern tool will work as well (e.g. VKB Button Tester, VKB Joy Tester etc.)
 
+### Alternative Sketch: Multi-Device Architecture
+Alongside the standard `buttonbox.ino`, you will find an alternative firmware sketch named `buttonbox_multi-device.ino`. 
+
+**Why is this needed?**
+Operating systems like Linux (via the `evdev` input driver) have a hardcoded limit of recognizing a maximum of 80 buttons per physical USB controller. Since this button box utilizes a dual-layer system providing 84 digital commands, Linux users would typically lose access to the highest-numbered inputs.
+
+**How it works:**
+The alternative sketch bypasses this OS limitation by registering the Arduino as **two separate virtual joysticks** (Device A and Device B) simultaneously over a single USB cable. 
+* The physical Mode button acts as an A/B router instead of a simple shift modifier.
+* **Mode OFF:** All physical buttons, encoders, and analog axes are routed exclusively to Device A.
+* **Mode ON:** All physical buttons, encoders, and analog axes are routed exclusively to Device B.
+
+The code features built-in safety logic to prevent "stuck buttons" when switching layers and ensures that the absolute analog axes instantly sync their physical potentiometer positions to the newly activated virtual device.
+
+**Which one should I use?**
+* **Windows Users:** It is highly recommended to stick to the standard `buttonbox.ino`. Managing a single device with a large button pool is generally cleaner and easier to map in simulators like MSFS, DCS, or Assetto Corsa.
+* **Linux Users:** Use `buttonbox_multi-device.ino` to ensure 100% of your inputs are correctly recognized by the operating system. (This is also useful for older games on any OS that struggle to recognize controllers with more than 64 buttons).
+
 ## 📝 License
 **3D Print Files**
 - The 3D models for the enclosure are hosted exclusively on MakerWorld. You can download the print files here: [Ultimate Sim-Racing & Flight Button Box | Arduino](https://makerworld.com/en/models/2670201-ultimate-sim-racing-flight-button-box-arduino)

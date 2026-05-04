@@ -57,6 +57,7 @@ char keys[ROWS][COLS] = {
   {18,19,20,21,22,23},{24,25,26,27,28,29},{30,31,32,33,34,35}
 };
 
+// Physical wiring map. ID 0 is the hardware Mode Switch.
 const byte buttonMap[36] = {
   3,2,1,0,28,26, 6,5,4,33,27,25, 18,16,14,34,32,30,
   17,15,13,35,31,29, 24,22,20,12,8,7, 23,21,19,11,10,9
@@ -64,13 +65,28 @@ const byte buttonMap[36] = {
 
 Keypad kpd = Keypad(makeKeymap(keys), rowPins, colPins, ROWS, COLS);
 
-// Joystick Config
-Joystick_ Joystick(0x08, 0x04, 128, 0, 
+// ==========================================
+// MULTI-DEVICE JOYSTICK CONFIGURATION
+// Both devices support 64 buttons and 3 axes
+// ==========================================
+
+// Device A: Report ID 0x03 (Active when Mode Switch is OFF)
+Joystick_ JoystickA(0x03, JOYSTICK_TYPE_JOYSTICK, 64, 0, 
   false, false, true,      // Deactivates X & Y, Activates Z (Slider Potentiometer)
   true, true, false,       // Activates Rx & Ry (Potentiometers), Deactivates Rz
   false, false,            // Deactivates Rudder & Throttle
   false, false,            // Deactivates Accelerator & Brake
   false);                  // Deactivates Slider
+
+// Device B: Report ID 0x04 (Active when Mode Switch is ON)
+Joystick_ JoystickB(0x04, JOYSTICK_TYPE_JOYSTICK, 64, 0, 
+  false, false, true,      // Deactivates X & Y, Activates Z (Slider Potentiometer)
+  true, true, false,       // Activates Rx & Ry (Potentiometers), Deactivates Rz
+  false, false,            // Deactivates Rudder & Throttle
+  false, false,            // Deactivates Accelerator & Brake
+  false);                  // Deactivates Slider
+
+// ==========================================
 
 // Encoder & Variables
 Encoder enc1(0, 1); Encoder enc2(A0, A1); Encoder enc3(A2, A3); 
@@ -88,9 +104,25 @@ bool isPulseTarget(int id) {
   return false;
 }
 
+// Anti-Stuck Logic: Releases all buttons on a specific device
+void clearDevice(Joystick_ &joy) {
+  for (int i = 0; i < 64; i++) {
+    joy.setButton(i, false);
+  }
+}
+
+// Forces the axes to bypass the threshold filter on the next loop, 
+// ensuring the new device instantly reads the current physical potentiometer positions.
+void forceAxisUpdate() {
+  lastRx = -999;
+  lastRy = -999;
+  lastZ = -999;
+}
+
 void setup() {
   pinMode(PIN_LED, OUTPUT);
-  Joystick.begin(true);
+  JoystickA.begin(true);
+  JoystickB.begin(true);
 
   // Visual Feedback: LED blinks 3 times on startup
   for(int i=0; i<3; i++) {
@@ -108,6 +140,9 @@ void setup() {
       }
     }
   }
+  
+  // Ensure the initial device reads the axes immediately
+  forceAxisUpdate();
 }
 
 void loop() {
@@ -118,7 +153,7 @@ void loop() {
     bool k2_Active = false;
     bool k3_Active = false;
     
-    // Check all currently active keys
+    // Check all currently active physical keys
     for (int i=0; i<10; i++) {
       if (kpd.key[i].kstate == PRESSED || kpd.key[i].kstate == HOLD) {
         int rawID = buttonMap[(int)kpd.key[i].kchar];
@@ -141,7 +176,7 @@ void loop() {
         }
         analogWrite(PIN_LED, modeActive ? 150 : 0); // Restore correct LED state
         
-        // Apply the new mode instantly to all switches
+        // Apply the new mode instantly to the active device
         refreshAllButtons();
       }
     } else {
@@ -157,12 +192,16 @@ void loop() {
         if (kpd.key[i].kstate == PRESSED) {
           modeActive = true;
           analogWrite(PIN_LED, 150);
-          refreshAllButtons(); 
+          clearDevice(JoystickA); // Release all held keys on Device A to prevent them getting stuck
+          forceAxisUpdate();      // Instantly sync pot positions to Device B
+          refreshAllButtons();    // Transfer currently held physical keys to Device B
         }
         else if (kpd.key[i].kstate == RELEASED) {
           modeActive = false;
           analogWrite(PIN_LED, 0);
-          refreshAllButtons(); 
+          clearDevice(JoystickB); // Release all held keys on Device B to prevent them getting stuck
+          forceAxisUpdate();      // Instantly sync pot positions to Device A
+          refreshAllButtons();    // Transfer currently held physical keys to Device A
         }
       } 
       else if (rawID > 0 && kpd.key[i].stateChanged) {
@@ -188,38 +227,38 @@ void loop() {
   int valR = readSmooth(A5); 
   int valF = readSmooth(A11);
 
+  // Determine the active virtual device for axis inputs
+  Joystick_& activeJoy = modeActive ? JoystickB : JoystickA;
+
   // Threshold of > 1 causes value change, increase if input starts to jitter
-  if (abs(valL - lastRx) > 1) { Joystick.setRxAxis(valL); lastRx = valL; }
-  if (abs(valR - lastRy) > 1) { Joystick.setRyAxis(valR); lastRy = valR; }
-  if (abs(valF - lastZ) > 1)  { Joystick.setZAxis(valF);  lastZ = valF; }
+  if (abs(valL - lastRx) > 1) { activeJoy.setRxAxis(valL); lastRx = valL; }
+  if (abs(valR - lastRy) > 1) { activeJoy.setRyAxis(valR); lastRy = valR; }
+  if (abs(valF - lastZ) > 1)  { activeJoy.setZAxis(valF);  lastZ = valF; }
 }
 
 // Helper Functions
 
 void updateSingleButton(int i) {
   int rawID = buttonMap[(int)kpd.key[i].kchar];
-  int btn = modeActive ? (rawID + 42) : rawID;
+  int btn = rawID - 1; // 0-based API index
   
-  // Clear both Banks (Bank 1: rawID, Bank 2: rawID + 42)
-  Joystick.setButton(rawID - 1, false);
-  Joystick.setButton(rawID + 42 - 1, false);
+  // Determine the active virtual device based on the mode switch
+  Joystick_& activeJoy = modeActive ? JoystickB : JoystickA;
 
   // Check if this button is a toggle switch AND if the live pulse mode is active
   if (pulseModeActive && isPulseTarget(rawID)) {
     // PULSE MODE: 
     // Triggering only once for a set duration if pressed (Pulse VS Toggle)
     if (kpd.key[i].kstate == PRESSED) {
-      Joystick.setButton(btn - 1, true);
+      activeJoy.setButton(btn, true);
       delay(pulseDuration);
-      Joystick.setButton(btn - 1, false);
+      activeJoy.setButton(btn, false);
     }
   } 
   else {
     // TOGGLE / MOMENTARY MODE (Original Behavior for all other buttons)
     bool isPressed = (kpd.key[i].kstate == PRESSED || kpd.key[i].kstate == HOLD);
-    if (isPressed) {
-      Joystick.setButton(btn - 1, true);
-    }
+    activeJoy.setButton(btn, isPressed);
   }
 }
 
@@ -235,16 +274,17 @@ void refreshAllButtons() {
 void checkEncoder(Encoder &encoder, int id, int baseBtn) {
   long newPos = encoder.read() / 4; 
   if (newPos != oldPos[id]) {
-    // Offset Encoder when Mode Switch is active
-    int currentBase = modeActive ? (baseBtn + 42) : baseBtn;
     
-    int btn = (newPos > oldPos[id]) ? currentBase : (currentBase + 1);
-    int otherBtn = (newPos > oldPos[id]) ? (currentBase + 1) : currentBase;
+    int btn = (newPos > oldPos[id]) ? baseBtn : (baseBtn + 1);
+    int otherBtn = (newPos > oldPos[id]) ? (baseBtn + 1) : baseBtn;
     
-    Joystick.setButton(otherBtn - 1, 0); 
-    Joystick.setButton(btn - 1, 1);
+    // Determine the active virtual device
+    Joystick_& activeJoy = modeActive ? JoystickB : JoystickA;
+
+    activeJoy.setButton(otherBtn - 1, 0); 
+    activeJoy.setButton(btn - 1, 1);
     delay(7); 
-    Joystick.setButton(btn - 1, 0);
+    activeJoy.setButton(btn - 1, 0);
     
     oldPos[id] = newPos;
   }
