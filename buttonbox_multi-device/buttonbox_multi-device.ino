@@ -248,10 +248,12 @@ void updateSingleButton(int i) {
   // Check if this button is a toggle switch AND if the live pulse mode is active
   if (pulseModeActive && isPulseTarget(rawID)) {
     // PULSE MODE: 
-    // Triggering only once for a set duration if pressed (Pulse VS Toggle)
     if (kpd.key[i].kstate == PRESSED) {
       activeJoy.setButton(btn, true);
       delay(pulseDuration);
+      activeJoy.setButton(btn, false);
+    } else {
+      // in the ON position from a previous Toggle-Mode session, explicitly turn it OFF here.
       activeJoy.setButton(btn, false);
     }
   } 
