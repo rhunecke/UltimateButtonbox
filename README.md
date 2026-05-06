@@ -21,7 +21,7 @@ Whether you need to manage complex autopilot systems, engine mixtures, or landin
 - Printing requires supports
 - I include a profile for printing PETG with a PLA interface layer as well as a No-AMS profile for printing a single material
 - Clearances were designed around the components I used (see shopping list). Might require adjustments when using other components.
-- The case can be printed with 2 walls and 15% infill. Parts for threaded inserts should be set to 100% infill.
+- The case can be printed with 2 walls and 15% infill. Areas receiving threaded inserts should be set to 100% infill.
 - Out of vanity I printed a case featuring my logo on the inside, this version is also included, as well as a test piece for testing clearances.
 
 **Printing times**
